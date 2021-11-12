@@ -25,6 +25,7 @@ class MyPromise {
     constructor(execute) {
         this._state = PENDING; // Pormise的状态
         this._value = undefined; // Pormise的数据
+        this._handles = []; //任务队列的数组
         try {
             // 立即执行new Promise传入的函数,如果执行函数发生错误，直接失败
             execute(this._resolve.bind(this), this._reject.bind(this)); //bind改变this指向
@@ -41,7 +42,47 @@ class MyPromise {
      */
     then(onFulFilledFun, onRecjecedFun) {
         return new Promise((resolve, reject) => {
+            this._pushOneHandle(onFulFilledFun, FULFILLED, resolve, reject)
+            this._pushOneHandle(onRecjecedFun, REJECTED, resolve, reject)
+            this._runHandles(); //执行队列
+        })
+    }
 
+    /**
+     * 执行任务队列的函数
+     * @returns undefined
+     */
+    _runHandles() {
+        if (this._state === PENDING) return;
+        console.log(this._handles.length)
+        while (this._handles[0]) {
+            const handle = this._handles[0]
+            this._runOneHandle(handle);
+            this._handles.shift();
+        }
+    }
+
+    /**
+     * 处理单个任务函数
+     * @param {Function} handle 
+     */
+    _runOneHandle(handle) {
+
+    }
+
+    /**
+     * 
+     * @param {Function} execute 处理函数
+     * @param {String} state 执行函数时，这个函数在那个状态下执行
+     * @param {Function} resolve then返回Promise，是返回的那个Promise的resolve，因为只有在执行处理函数的时候才知道，返回的这个Promise是否完成
+     * @param {Function} reject 跟上面一样 
+     */
+    _pushOneHandle(execute, state, resolve, reject) {
+        this._handles.push({
+            execute,
+            state,
+            resolve,
+            reject
         })
     }
 
@@ -54,6 +95,7 @@ class MyPromise {
         if (this._state !== PENDING) return;
         this._state = newState;
         this._value = data;
+        this._runHandles();
     }
 
     /**
@@ -73,15 +115,15 @@ class MyPromise {
     }
 }
 
-// const pro = new MyPromise((resolve, reject) => {
-//     throw 123
-// })
-
-
-runMicroTask(() => {
-    console.log("sss")
+const pro = new MyPromise((resolve, reject) => {
+    resolve(1)
 })
 
-setTimeout(() => { console.log(1) });
+pro.then(() => {
+    console.log(1)
+}, () => { })
+setTimeout(() => {
+    pro.then(() => { console.log(999) })
+})
 
-console.log(2)
+console.log(pro)
