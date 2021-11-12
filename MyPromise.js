@@ -1,6 +1,26 @@
 const PENDING = "pending";
 const FULFILLED = "fulfilled";
 const REJECTED = "rejected";
+
+/**
+ * 
+ * @param {Function} callback
+ * 把函数添加到微队列中 
+ */
+function runMicroTask(callback) {
+    // node环境
+    if (process && process.nextTick) {
+        process.nextTick(callback);
+    } else if (MutationObserver) {
+        const p = document.createElement("p");
+        const observer = new MutationObserver(callback);
+        observer.observe(p, { childList: true });
+        p.innerHTML = "1";
+    } else {
+        setTimeout(callback, 0);
+    }
+}
+
 class MyPromise {
     constructor(execute) {
         this._state = PENDING; // Pormise的状态
@@ -11,6 +31,18 @@ class MyPromise {
         } catch (error) {
             this._reject(error)
         }
+    }
+
+    /**
+     * 
+     * @param {Function} onFulFilledFun 
+     * @param {Function} onRecjecedFun 
+     * return Promise
+     */
+    then(onFulFilledFun, onRecjecedFun) {
+        return new Promise((resolve, reject) => {
+
+        })
     }
 
     /**
@@ -41,6 +73,15 @@ class MyPromise {
     }
 }
 
-const pro = new MyPromise((resolve, reject) => {
-    throw 123
+// const pro = new MyPromise((resolve, reject) => {
+//     throw 123
+// })
+
+
+runMicroTask(() => {
+    console.log("sss")
 })
+
+setTimeout(() => { console.log(1) });
+
+console.log(2)
