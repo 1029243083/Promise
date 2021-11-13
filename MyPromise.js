@@ -21,6 +21,10 @@ function runMicroTask(callback) {
     }
 }
 
+function isPromise(obj) {
+    return !!(obj && typeof obj === 'object' && typeof obj.then === 'function');
+}
+
 class MyPromise {
     constructor(execute) {
         this._state = PENDING; // Pormise的状态
@@ -41,7 +45,7 @@ class MyPromise {
      * return Promise
      */
     then(onFulFilledFun, onRecjecedFun) {
-        return new Promise((resolve, reject) => {
+        return new MyPromise((resolve, reject) => {
             this._pushOneHandle(onFulFilledFun, FULFILLED, resolve, reject)
             this._pushOneHandle(onRecjecedFun, REJECTED, resolve, reject)
             this._runHandles(); //执行队列
@@ -54,7 +58,6 @@ class MyPromise {
      */
     _runHandles() {
         if (this._state === PENDING) return;
-        console.log(this._handles.length)
         while (this._handles[0]) {
             const handle = this._handles[0]
             this._runOneHandle(handle);
@@ -67,7 +70,30 @@ class MyPromise {
      * @param {Function} handle 
      */
     _runOneHandle(handle) {
+        runMicroTask(() => {
+            // 如果当前状态和handle里的状态不一致，就不处理
+            if (this._state !== handle.state) return;
 
+            if (typeof handle.execute !== "function") {
+                // 如果then参数传递的不是一个函数，状态穿透，上一个Promise是啥，then返回的Promise的状态就是啥
+                this._state === FULFILLED ? handle.resolve(this._value) : handle.reject(this._value);
+                return;
+            }
+            try {
+                const res = handle.execute.call(this, this._value);
+                if (isPromise(res)) { // 如果返回的是Promise，根据返回的Promise的状态来决定，当前then返回的Promise的状态
+                    res.then((value) => {
+                        handle.resolve(value);
+                    }, (resone) => {
+                        handle.reject(resone)
+                    })
+                } else {
+                    handle.resolve.call(this, this._value)
+                }
+            } catch (error) {
+                handle.reject(error);
+            }
+        })
     }
 
     /**
@@ -116,14 +142,34 @@ class MyPromise {
 }
 
 const pro = new MyPromise((resolve, reject) => {
-    resolve(1)
+    setTimeout(() => {
+        resolve(1)
+    }, 1000)
 })
 
-pro.then(() => {
-    console.log(1)
-}, () => { })
-setTimeout(() => {
-    pro.then(() => { console.log(999) })
-})
+// const pro2 = pro.then((data) => {
+//     console.log(data)
+// }, (data) => {
+//     console.log(data)
+// })
 
-console.log(pro)
+const pro2 = pro.then((data) => {
+    console.log(this)
+    throw "erro"
+});
+pro2.then((data) => {
+    console.log(data)
+}, (err) => {
+    console.log(err)
+})
+// setTimeout(() => {
+//     console.log(pro2)
+// }, 10)
+
+
+// const pro = new Promise((resolve, reject) => {
+//     setTimeout(() => {
+//         throw 1;
+//     }, 1000)
+// })
+// pro.then(() => { }, (data) => { console.log(data) })
