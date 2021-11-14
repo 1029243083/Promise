@@ -88,7 +88,7 @@ class MyPromise {
                         handle.reject(resone)
                     })
                 } else {
-                    handle.resolve.call(this, this._value)
+                    handle.resolve.call(this, res)
                 }
             } catch (error) {
                 handle.reject(error);
@@ -139,37 +139,123 @@ class MyPromise {
     _reject(data) {
         this._stateChange(REJECTED, data);
     }
+
+    /**
+     * 方法返回一个以给定值解析后的Promise 对象。如果这个值是一个 promise ，那么将返回这个 promise 
+     * @param {any} value 
+     */
+    static resolve(value) {
+        if (value instanceof Promise) {
+            return value;
+        }
+        if (isPromise(value)) {
+            return value;
+        }
+        return new MyPromise((resolve, reject) => {
+            reject(value)
+        })
+    }
+
+    /**
+     * 方法返回一个带有拒绝原因的Promise对象。
+     * @param {any} reason 
+     */
+    static reject(reason) {
+        return new MyPromise((resolve, reject) => {
+            reject(reason)
+        })
+    }
+
+    /**
+     * 返回一个Promise，当数组里的promise全部完成，返回的Promise完成，如果有一个失败，返回的Promise失败，then的数据必须是有序的
+     * @param {MyPromise[]} promises 
+     */
+    static all(promises) {
+        return new MyPromise((resolve, reject) => {
+            const values = [];
+            let count = 0; // 有多少个promise
+            let fulfilledCount = 0; // 有多个成功了
+            for (const p of promises) {
+                let i = count;
+                count++; // 循环一次代表有一个promise
+                MyPromise.resolve(p).then(data => {
+                    fulfilledCount++; // 进入then表示有一个promise成功了
+                    values[i] = data;
+                    if (fulfilledCount === count) {
+                        resolve(values)
+                    }
+                }, (reason) => {
+                    reject(reason);
+                })
+            }
+
+        })
+    }
+
+    /**
+     * 方法返回一个在所有给定的promise都已经fulfilled或rejected后的promise，并带有一个对象数组，每个对象表示对应的promise结果。
+     * @param {MyPromise[]} promises 
+     */
+    static allSettled(promises) {
+        const ps = [];
+        for (const p of promises) {
+            ps.push(
+                MyPromise.resolve(p).then(
+                    function (data) {
+                        return {
+                            status: FULFILLED,
+                            data
+                        }
+                    },
+                    function (reason) {
+                        return {
+                            status: REJECTED,
+                            reason
+                        }
+                    }
+                )
+            )
+        }
+        return MyPromise.all(ps)
+    }
+
+    /**
+     * 返回promise，看传入的promis，谁先完成，返回的promise就是哪个状态
+     * @param {iterable} iterable 
+     */
+    static race(iterable) {
+        return new MyPromise((resolve, reject) => {
+            for (const p of iterable) {
+                p.then(resolve, reject)
+            }
+        })
+    }
+
+    toString() {
+        return `Promise { <${this._state}> }`
+    }
+
+
 }
 
-const pro = new MyPromise((resolve, reject) => {
-    setTimeout(() => {
-        resolve(1)
-    }, 1000)
-})
-
-// const pro2 = pro.then((data) => {
-//     console.log(data)
-// }, (data) => {
-//     console.log(data)
-// })
-
-const pro2 = pro.then((data) => {
-    console.log(this)
-    throw "erro"
+const promise1 = new MyPromise((resolve, reject) => {
+    setTimeout(resolve, 10, 'one');
 });
-pro2.then((data) => {
-    console.log(data)
-}, (err) => {
-    console.log(err)
-})
-// setTimeout(() => {
-//     console.log(pro2)
-// }, 10)
 
+const promise2 = new MyPromise((resolve, reject) => {
+    setTimeout(reject, 100, 'two');
+});
 
-// const pro = new Promise((resolve, reject) => {
-//     setTimeout(() => {
-//         throw 1;
-//     }, 1000)
-// })
-// pro.then(() => { }, (data) => { console.log(data) })
+Promise.race([promise1, promise2]).then((value) => {
+    console.log(value);
+    // Both resolve, but promise2 is faster
+}, err => { console.log(err) });
+
+// const pro1 = new MyPromise((resolve) => { setTimeout(() => { resolve(1) }, 100) })
+// const pro2 = new MyPromise((resolve, reject) => { reject(2) })
+// const pro3 = new MyPromise((resolve) => { resolve(3) })
+// const pro4 = new MyPromise((resolve) => { resolve(4) })
+
+// const all = MyPromise.allSettled([pro1, pro2, pro3, 1])
+// all.then(res => { console.log(res) },
+//     reason => { console.log(reason) })
